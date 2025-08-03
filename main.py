@@ -46,6 +46,11 @@ def save_seen_ids():
         json.dump(list(seen_ids), f)
 
 def send_email(listing):
+    # Check if emails are disabled
+    if os.getenv('DISABLE_EMAILS', 'false').lower() == 'true':
+        print(f"Emails disabled - would have sent: {listing['title']}")
+        return
+        
     try:
         yag = yagmail.SMTP(config['gmail_user'], config['gmail_password'])
         subject = f"🏠 New Qasa Listing: {listing['title']} – {listing['price']} SEK"
@@ -185,10 +190,10 @@ def scrape_qasa():
 
 def get_random_delay():
     # Use a triangular distribution for more natural intervals
-    # min=5, max=40, mode=22 (mean will be above 20)
-    # But ensure minimum 10 minutes to avoid spam
-    delay = random.triangular(10, 40, 25)
-    return max(delay, 10)  # Minimum 10 minutes
+    # min=5, max=35, mode=22 (mean will be around 22)
+    # But ensure minimum 5 minutes to avoid spam
+    delay = random.triangular(5, 35, 22)
+    return max(delay, 5)  # Minimum 5 minutes
 
 def is_active_hours():
     """Check if current time is within active hours (7 AM to 11 PM)"""
