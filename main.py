@@ -18,7 +18,10 @@ def load_config():
         config['gmail_password'] = os.getenv('GMAIL_PASSWORD')
         config['qasa_email'] = os.getenv('QASA_EMAIL')
         config['qasa_password'] = os.getenv('QASA_PASSWORD')
-        config['message_to_owner'] = os.getenv('MESSAGE_TO_OWNER', 'Hi! I\'m interested in your apartment.')
+        # Only add message_to_owner if we're actually using it
+        message = os.getenv('MESSAGE_TO_OWNER')
+        if message:
+            config['message_to_owner'] = message
     else:
         # Fall back to config file (for local development)
         with open("config.yaml", "r") as f:
