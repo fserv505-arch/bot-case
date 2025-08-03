@@ -22,6 +22,7 @@ RUN apt-get update && apt-get install -y \
     libxss1 \
     libxtst6 \
     xvfb \
+    libgbm1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -36,13 +37,15 @@ COPY main.py .
 COPY web.py .
 COPY config.yaml .
 
+# Install Playwright dependencies as root (required)
+RUN playwright install-deps
+
 # Create a non-root user
 RUN useradd -m -u 1000 botuser && chown -R botuser:botuser /app
 
 # Install Playwright browsers as botuser
 USER botuser
 RUN playwright install chromium
-RUN playwright install-deps
 
 # Run the web server (which will also run the bot)
 CMD ["python", "web.py"] 
