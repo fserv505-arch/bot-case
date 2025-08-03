@@ -190,10 +190,10 @@ def scrape_qasa():
 
 def get_random_delay():
     # Use a triangular distribution for more natural intervals
-    # min=5, max=35, mode=22 (mean will be around 22)
-    # But ensure minimum 5 minutes to avoid spam
-    delay = random.triangular(5, 35, 22)
-    return max(delay, 5)  # Minimum 5 minutes
+    # min=10, max=35, mode=25 (mean will be around 25)
+    # But ensure minimum 10 minutes to avoid spam
+    delay = random.triangular(10, 35, 25)
+    return max(delay, 10)  # Minimum 10 minutes
 
 def is_active_hours():
     """Check if current time is within active hours (7 AM to 11 PM)"""
