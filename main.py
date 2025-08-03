@@ -31,7 +31,7 @@ def load_config():
 
 config = load_config()
 
-SEEN_FILE = "seen_listings.json"
+SEEN_FILE = "/app/seen_listings.json"
 FILTERED_URL = "https://qasa.se/en/find-home?furnished=furnished&maxMonthlyCost=12300&maxRoomCount=4&searchAreas=Stockholm~~se&sharedHome=privateHome"
 
 # Load previously seen listing IDs
@@ -121,7 +121,9 @@ def scrape_qasa():
                 if not href:
                     continue
                 listing_id = href.split("/")[-1]
+                print(f"Checking listing: {listing_id}")
                 if listing_id in seen_ids:
+                    print(f"Already seen: {listing_id}")
                     continue
 
                 # Extract title
@@ -167,6 +169,7 @@ def scrape_qasa():
 
                 # Save and act
                 seen_ids.add(listing_id)
+                print(f"New listing found: {listing_id} - {listing_data['title']}")
                 send_email(listing_data)
                 # contact_landlord(page, listing_data)  # This line is now removed
 
@@ -176,13 +179,16 @@ def scrape_qasa():
 
         save_seen_ids()
         print(f"{new_found} new listings found.")
+        print(f"Total seen listings: {len(seen_ids)}")
 
         browser.close()
 
 def get_random_delay():
     # Use a triangular distribution for more natural intervals
     # min=5, max=40, mode=22 (mean will be above 20)
-    return random.triangular(5, 40, 22)
+    # But ensure minimum 10 minutes to avoid spam
+    delay = random.triangular(10, 40, 25)
+    return max(delay, 10)  # Minimum 10 minutes
 
 def is_active_hours():
     """Check if current time is within active hours (7 AM to 11 PM)"""

@@ -7,6 +7,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./seen_listings.json:/app/seen_listings.json
+      - ./data:/app/data
     environment:
       - DISPLAY=:99
     shm_size: '2gb'
