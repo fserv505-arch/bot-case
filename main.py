@@ -6,10 +6,27 @@ import yagmail
 import schedule
 from playwright.sync_api import sync_playwright
 import random
+from datetime import datetime, time as dt_time, timedelta
 
-# Load config
-with open("config.yaml", "r") as f:
-    config = yaml.safe_load(f)
+# Load config from environment variables or config file
+def load_config():
+    config = {}
+    
+    # Try to load from environment variables first (for deployment)
+    if os.getenv('GMAIL_USER'):
+        config['gmail_user'] = os.getenv('GMAIL_USER')
+        config['gmail_password'] = os.getenv('GMAIL_PASSWORD')
+        config['qasa_email'] = os.getenv('QASA_EMAIL')
+        config['qasa_password'] = os.getenv('QASA_PASSWORD')
+        config['message_to_owner'] = os.getenv('MESSAGE_TO_OWNER', 'Hi! I\'m interested in your apartment.')
+    else:
+        # Fall back to config file (for local development)
+        with open("config.yaml", "r") as f:
+            config = yaml.safe_load(f)
+    
+    return config
+
+config = load_config()
 
 SEEN_FILE = "seen_listings.json"
 FILTERED_URL = "https://qasa.se/en/find-home?furnished=furnished&maxMonthlyCost=12300&maxRoomCount=4&searchAreas=Stockholm~~se&sharedHome=privateHome"
@@ -143,8 +160,45 @@ def get_random_delay():
     # min=5, max=40, mode=22 (mean will be above 20)
     return random.triangular(5, 40, 22)
 
+def is_active_hours():
+    """Check if current time is within active hours (7 AM to 11 PM)"""
+    current_time = datetime.now().time()
+    
+    # Get hours from config or use defaults
+    start_hour = int(os.getenv('ACTIVE_START_HOUR', 7))
+    end_hour = int(os.getenv('ACTIVE_END_HOUR', 23))
+    
+    start_time = dt_time(start_hour, 0)
+    end_time = dt_time(end_hour, 0)
+    
+    return start_time <= current_time <= end_time
+
+def get_sleep_until_active():
+    """Calculate minutes until next active period"""
+    current_time = datetime.now()
+    
+    # Get hours from config or use defaults
+    start_hour = int(os.getenv('ACTIVE_START_HOUR', 7))
+    end_hour = int(os.getenv('ACTIVE_END_HOUR', 23))
+    
+    tomorrow = current_time.replace(hour=start_hour, minute=0, second=0, microsecond=0) + timedelta(days=1)
+    
+    if current_time.hour >= end_hour:  # After end time
+        return (tomorrow - current_time).total_seconds() / 60
+    else:  # Before start time
+        today_start = current_time.replace(hour=start_hour, minute=0, second=0, microsecond=0)
+        return (today_start - current_time).total_seconds() / 60
+
 while True:
-    scrape_qasa()
-    delay = get_random_delay()
-    print(f"Next check in {int(delay)} minutes...")
-    time.sleep(delay * 60)
+    if is_active_hours():
+        scrape_qasa()
+        delay = get_random_delay()
+        print(f"Next check in {int(delay)} minutes...")
+        time.sleep(delay * 60)
+    else:
+        sleep_minutes = get_sleep_until_active()
+        start_hour = int(os.getenv('ACTIVE_START_HOUR', 7))
+        end_hour = int(os.getenv('ACTIVE_END_HOUR', 23))
+        print(f"Outside active hours ({start_hour}:00 - {end_hour}:00). Sleeping until {start_hour}:00...")
+        print(f"Sleeping for {int(sleep_minutes)} minutes...")
+        time.sleep(sleep_minutes * 60)
