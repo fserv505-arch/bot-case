@@ -25,11 +25,12 @@ RUN playwright install-deps
 
 # Copy application files
 COPY main.py .
+COPY web.py .
 COPY config.yaml .
 
 # Create a non-root user
 RUN useradd -m -u 1000 botuser && chown -R botuser:botuser /app
 USER botuser
 
-# Run the application
-CMD ["python", "main.py"] 
+# Run the web server (which will also run the bot)
+CMD ["python", "web.py"] 
