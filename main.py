@@ -67,9 +67,30 @@ Automatically found by your Qasa bot.
 
 def scrape_qasa():
     print("Checking Qasa for new listings...")
+    
+    # Debug: Check browser installation
+    import os
+    import subprocess
+    try:
+        # Check if browsers are installed
+        result = subprocess.run(['playwright', 'install', '--dry-run'], capture_output=True, text=True)
+        print(f"Browser check result: {result.stdout}")
+        
+        # Check browser cache directory
+        cache_dir = os.path.expanduser("~/.cache/ms-playwright")
+        if os.path.exists(cache_dir):
+            print(f"Browser cache exists at: {cache_dir}")
+            import subprocess
+            result = subprocess.run(['ls', '-la', cache_dir], capture_output=True, text=True)
+            print(f"Cache contents: {result.stdout}")
+        else:
+            print(f"Browser cache not found at: {cache_dir}")
+            
+    except Exception as e:
+        print(f"Debug check failed: {e}")
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(headless=True, args=['--no-sandbox', '--disable-dev-shm-usage'])
         context = browser.new_context()
         page = context.new_page()
 

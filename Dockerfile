@@ -31,10 +31,6 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright browsers
-RUN playwright install chromium
-RUN playwright install-deps
-
 # Copy application files
 COPY main.py .
 COPY web.py .
@@ -42,7 +38,11 @@ COPY config.yaml .
 
 # Create a non-root user
 RUN useradd -m -u 1000 botuser && chown -R botuser:botuser /app
+
+# Install Playwright browsers as botuser
 USER botuser
+RUN playwright install chromium
+RUN playwright install-deps
 
 # Run the web server (which will also run the bot)
 CMD ["python", "web.py"] 
