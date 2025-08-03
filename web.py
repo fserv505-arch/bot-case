@@ -6,7 +6,18 @@ import sys
 # Import and run the main bot in a separate thread
 def run_bot():
     import main
-    main.scrape_qasa()  # Run the main bot logic
+    # Run the main bot loop
+    while True:
+        try:
+            main.scrape_qasa()
+            import time
+            import random
+            delay = main.get_random_delay()
+            print(f"Next check in {int(delay)} minutes...")
+            time.sleep(delay * 60)
+        except Exception as e:
+            print(f"Error in bot loop: {e}")
+            time.sleep(60)  # Wait 1 minute before retrying
 
 app = Flask(__name__)
 
