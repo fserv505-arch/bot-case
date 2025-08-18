@@ -1,0 +1,15 @@
+gmail_user: "your-email@gmail.com"
+gmail_password: "your-gmail-app-password"
+qasa_email: "optional-qasa-login@example.com"
+qasa_password: "optional-qasa-password"
+recipient_email: "optional-notifications-recipient@example.com"
+search_url: "https://qasa.se/en/find-home?furnished=furnished&maxMonthlyCost=12300&maxRoomCount=4&searchAreas=Stockholm~~se&sharedHome=privateHome"
+message_to_owner: |
+  Hi! I’m <Your Name>, I’m interested in the apartment and would love to schedule
+  a video call to view it. If everything looks good, I’d be happy to move forward
+  quickly with the contract.
+
+  Here’s my number: +XX XXX XXX XXXX.
+
+  Looking forward to hearing from you!
+

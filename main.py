@@ -32,7 +32,11 @@ def load_config():
 config = load_config()
 
 SEEN_FILE = "/app/seen_listings.json"
-FILTERED_URL = "https://qasa.se/en/find-home?furnished=furnished&maxMonthlyCost=12300&maxRoomCount=4&searchAreas=Stockholm~~se&sharedHome=privateHome"
+
+# Personalizable search URL and recipient email
+DEFAULT_SEARCH_URL = "https://qasa.se/en/find-home?furnished=furnished&maxMonthlyCost=12300&maxRoomCount=4&searchAreas=Stockholm~~se&sharedHome=privateHome"
+FILTERED_URL = os.getenv('SEARCH_URL') or config.get('search_url', DEFAULT_SEARCH_URL)
+RECIPIENT_EMAIL = os.getenv('RECIPIENT_EMAIL') or config.get('recipient_email', config.get('gmail_user'))
 
 # Load previously seen listing IDs
 if os.path.exists(SEEN_FILE):
@@ -65,7 +69,7 @@ New apartment found:
 
 Automatically found by your Qasa bot.
 """
-        yag.send(to=config['gmail_user'], subject=subject, contents=body)
+        yag.send(to=RECIPIENT_EMAIL, subject=subject, contents=body)
         print(f"Email sent for: {listing['title']}")
     except Exception as e:
         print(f"Failed to send email: {e}")
@@ -109,78 +113,160 @@ def scrape_qasa():
         except Exception as e:
             print(f"No cookie popup or failed to accept cookies: {e}")
 
-        try:
-            # Updated selector for Qasa listing cards
-            listings = page.query_selector_all('a[href^="/en/home/"]')
-            print(f"Found {len(listings)} listings on the page.")
-        except Exception as e:
-            print(f"Error finding listings: {e}")
-            print(page.content())  # Print the HTML for debugging
-            listings = []
-
         new_found = 0
 
-        for card in listings:
+        def parse_price_from_html(html_text: str) -> int:
             try:
-                href = card.get_attribute("href")
-                if not href:
-                    continue
-                listing_id = href.split("/")[-1]
-                print(f"Checking listing: {listing_id}")
-                if listing_id in seen_ids:
-                    print(f"Already seen: {listing_id}")
-                    continue
+                import re
+                match = re.search(r'([0-9][0-9\s\xa0,\.]+)\s*(SEK|kr)', html_text, re.IGNORECASE)
+                if not match:
+                    return 0
+                digits = ''.join(ch for ch in match.group(1) if ch.isdigit())
+                return int(digits) if digits else 0
+            except Exception:
+                return 0
 
-                # Extract title
-                try:
-                    title = card.query_selector("h2").inner_text()
-                except Exception:
-                    title = "Unknown"
-                # Extract location
-                try:
-                    location = page.query_selector("h1").inner_text()
-                except Exception:
-                    location = "Unknown"
-                # Extract price
-                try:
-                    price_text = card.query_selector(".eq1ubw50").inner_text()
-                    price = int(price_text.replace("SEK", "").replace("\xa0", "").replace(",", "").strip())
-                except Exception as e:
-                    print(f"Error parsing price: {e}")
-                    price = 0
-                url = f"https://qasa.se{href}"
-                # Extract move-in date
-                try:
-                    date_spans = page.query_selector_all("div.qds-d3xutt .qds-10hlnxp.erqv7p41")
-                    move_in_date = date_spans[0].inner_text() if len(date_spans) > 0 else "Unknown"
-                    move_out_date = date_spans[1].inner_text() if len(date_spans) > 1 else "Unknown"
-                except Exception:
-                    move_in_date = "Unknown"
-                # Extract rooms
-                try:
-                    rooms = card.query_selector_all(".qds-10hlnxp.erqv7p41")[1].inner_text()
-                except Exception:
-                    rooms = "?"
-
-                listing_data = {
-                    "id": listing_id,
-                    "title": title,
-                    "location": location,
-                    "price": price,
-                    "url": url,
-                    "move_in_date": move_in_date,
-                    "rooms": rooms
-                }
-
-                # Save and act
-                seen_ids.add(listing_id)
-                print(f"New listing found: {listing_id} - {listing_data['title']}")
-                send_email(listing_data)
-                # contact_landlord(page, listing_data)  # This line is now removed
-
-                new_found += 1
+        def handle_blocket_domain():
+            nonlocal new_found
+            print("Detected Blocket Bostad domain. Using Blocket scraper.")
+            # Try to find listing anchors
+            try:
+                cards = page.query_selector_all('a[href^="/en/home/"], a[href*="/home/"]')
+                print(f"Found {len(cards)} potential listing links on Blocket page.")
             except Exception as e:
-                print(f"Error processing listing: {e}\nListing URL: {url if 'url' in locals() else 'unknown'}")
+                print(f"Error finding Blocket listings: {e}")
+                print(page.content())
+                cards = []
+
+            seen_hrefs = set()
+            for card in cards:
+                try:
+                    href = card.get_attribute("href")
+                    if not href or 'find-home' in href:
+                        continue
+                    if href in seen_hrefs:
+                        continue
+                    seen_hrefs.add(href)
+
+                    listing_id = href.rstrip('/').split('/')[-1]
+                    if listing_id in seen_ids:
+                        continue
+
+                    detail_url = href if href.startswith('http') else f"https://bostad.blocket.se{href}"
+                    detail_page = context.new_page()
+                    try:
+                        detail_page.goto(detail_url)
+                        detail_page.wait_for_timeout(3000)
+                        try:
+                            detail_page.click('button:has-text("Accept")')
+                            detail_page.wait_for_timeout(500)
+                        except Exception:
+                            pass
+
+                        # Extract details from detail page for robustness
+                        try:
+                            title = detail_page.query_selector('h1').inner_text()
+                        except Exception:
+                            title = 'Unknown'
+
+                        try:
+                            html_text = detail_page.content()
+                            price = parse_price_from_html(html_text)
+                        except Exception:
+                            price = 0
+
+                        listing_data = {
+                            'id': listing_id,
+                            'title': title,
+                            'location': 'Unknown',
+                            'price': price,
+                            'url': detail_url,
+                            'move_in_date': 'Unknown',
+                            'rooms': '?'
+                        }
+
+                        seen_ids.add(listing_id)
+                        print(f"New listing found (Blocket): {listing_id} - {listing_data['title']}")
+                        send_email(listing_data)
+                        new_found += 1
+                    finally:
+                        try:
+                            detail_page.close()
+                        except Exception:
+                            pass
+                except Exception as e:
+                    print(f"Error processing Blocket listing: {e}")
+
+        def handle_qasa_domain():
+            nonlocal new_found
+            print("Detected Qasa domain. Using Qasa scraper.")
+            try:
+                listings = page.query_selector_all('a[href^="/en/home/"]')
+                print(f"Found {len(listings)} listings on the page.")
+            except Exception as e:
+                print(f"Error finding listings: {e}")
+                print(page.content())
+                listings = []
+
+            for card in listings:
+                try:
+                    href = card.get_attribute("href")
+                    if not href:
+                        continue
+                    listing_id = href.split("/")[-1]
+                    print(f"Checking listing: {listing_id}")
+                    if listing_id in seen_ids:
+                        print(f"Already seen: {listing_id}")
+                        continue
+
+                    try:
+                        title = card.query_selector("h2").inner_text()
+                    except Exception:
+                        title = "Unknown"
+                    try:
+                        location = page.query_selector("h1").inner_text()
+                    except Exception:
+                        location = "Unknown"
+                    try:
+                        price_text = card.query_selector(".eq1ubw50").inner_text()
+                        price = int(price_text.replace("SEK", "").replace("\xa0", "").replace(",", "").strip())
+                    except Exception as e:
+                        print(f"Error parsing price: {e}")
+                        price = 0
+                    url = f"https://qasa.se{href}"
+                    try:
+                        date_spans = page.query_selector_all("div.qds-d3xutt .qds-10hlnxp.erqv7p41")
+                        move_in_date = date_spans[0].inner_text() if len(date_spans) > 0 else "Unknown"
+                        move_out_date = date_spans[1].inner_text() if len(date_spans) > 1 else "Unknown"
+                    except Exception:
+                        move_in_date = "Unknown"
+                    try:
+                        rooms = card.query_selector_all(".qds-10hlnxp.erqv7p41")[1].inner_text()
+                    except Exception:
+                        rooms = "?"
+
+                    listing_data = {
+                        "id": listing_id,
+                        "title": title,
+                        "location": location,
+                        "price": price,
+                        "url": url,
+                        "move_in_date": move_in_date,
+                        "rooms": rooms
+                    }
+
+                    seen_ids.add(listing_id)
+                    print(f"New listing found: {listing_id} - {listing_data['title']}")
+                    send_email(listing_data)
+                    new_found += 1
+                except Exception as e:
+                    print(f"Error processing listing: {e}\nListing URL: {url if 'url' in locals() else 'unknown'}")
+
+        # Choose scraper by domain
+        if 'bostad.blocket.se' in FILTERED_URL:
+            handle_blocket_domain()
+        else:
+            handle_qasa_domain()
 
         save_seen_ids()
         print(f"{new_found} new listings found.")
