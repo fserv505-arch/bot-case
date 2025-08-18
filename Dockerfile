@@ -35,7 +35,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application files
 COPY main.py .
 COPY web.py .
-COPY config.yaml .
 
 # Install Playwright dependencies as root (required)
 RUN playwright install-deps
