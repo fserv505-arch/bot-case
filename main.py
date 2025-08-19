@@ -34,7 +34,7 @@ config = load_config()
 SEEN_FILE = "/app/seen_listings.json"
 
 # Personalizable search URL and recipient email
-DEFAULT_SEARCH_URL = "https://qasa.se/en/find-home?furnished=furnished&maxMonthlyCost=12300&maxRoomCount=4&searchAreas=Stockholm~~se&sharedHome=privateHome"
+DEFAULT_SEARCH_URL = "https://bostad.blocket.se/en/find-home?maxMonthlyCost=14000&sharedHome=privateHome&ne_lat=59.35418143436718&ne_lng=18.135400090278125&sw_lat=59.2866462980453&sw_lng=17.985259820977006&minRentalLength=31556952&furnished=furnished"
 FILTERED_URL = os.getenv('SEARCH_URL') or config.get('search_url', DEFAULT_SEARCH_URL)
 RECIPIENT_EMAIL = os.getenv('RECIPIENT_EMAIL') or config.get('recipient_email', config.get('gmail_user'))
 
